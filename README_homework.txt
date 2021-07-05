@@ -28,7 +28,6 @@ Pre-requisites:
 			│   │   └── main.yml
 			│   ├── README.md
 			│   ├── tasks
-			│   │   ├── delete_file.yml
 			│   │   └── main.yml
 			│   ├── templates
 			│   ├── tests
