@@ -1,0 +1,50 @@
+---
+# vars file for /etc/ansible/roles/install_clien_v2oracle_install_group:              "oinstall"
+root_directory:                     "/u01"
+stage_dir:                          "/u01/stage"
+file_dir:                           "/vagrant/downloads"
+oracle_base:                        /u01/app/oracle
+oracleclient_home:                  /u01/app/oracle/product/19c
+oracleclient_inventory:             /u01/app/oraInventory
+oracle_user:                        oracle
+oracle_client_user_id:              11000
+oracle_client_group:                oinstall
+oracle_client_group_id:             11000
+root_user:                          root
+oraclntsoft:                   "oracleclient.soft"    
+oracleclient_installType:           Administrator
+tns_path: "{{ oracleclient_home }}/network/admin"
+tns_file: "{{ tns_path }}/tnsnames.ora"
+sqlnet_file: "{{ tns_path }}/sqlnet.ora"
+portnum:                         1521
+db_name:                    ORCL
+oracle_sid:                    ORCL
+dbhost:                         192.168.33.12
+id_rsa_file_orcl:                    /home/oracle/.ssh/id_rsa
+ssh_public_key:                   /root/.ssh/id_rsa.pub 
+passphrase:                    "changeit"
+remote_tmp:                    /tmp
+oracle_psw: oraclemanager
+
+env_clh:
+  ORACLE_HOME: "{{ oracleclient_home }}"
+  ORACLE_BASE: "{{ oracle_base }}"
+  PATH: "{{ oracleclient_home }}/bin:$PATH:/bin:/usr/bin::/usr/ccs/bin"
+  
+__oracle_client_dependencies:
+  - binutils
+  - compat-libcap1
+  - gcc
+  - gcc-c++
+  - glibc
+  - glibc-devel
+  - ksh
+  - libgcc
+  - libstdc++
+  - libstdc++-devel
+  - libaio
+  - libaio-devel
+  - make
+  - sysstat
+  - unzip
+  - psmisc

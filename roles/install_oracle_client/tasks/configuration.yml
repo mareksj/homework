@@ -1,0 +1,82 @@
+---
+- name: Install Dependencies
+  package:
+    name: "{{ item }}"
+    state: installed
+  with_items: "{{ __oracle_client_dependencies | default([]) }}"
+
+- name: Check for group oinstall
+  shell: grep {{ oracle_client_group }} /etc/group | wc -l
+  register: command_g
+- debug: msg="{{command_g.stdout}}"
+
+- name: Set Whether Group Oinstall exists
+  set_fact:
+    __oracle_group_exists: "{{ command_g.stdout }}"
+
+- name: Creating Oracle Client Install Group
+  group:
+    state: present
+    name: "{{ oracle_client_group }}"
+    gid: "{{ oracle_client_group_id }}"
+  when:
+    - __oracle_group_exists == "0"
+
+- name: Check for group oinstall
+  shell: grep {{ oracle_client_group }} /etc/group | wc -l
+  register: command_g2
+- debug: msg="{{command_g2.stdout}}"
+
+- name: Set Whether Group Oinstall exists
+  set_fact:
+    __oracle_group_exists: "{{ command_g2.stdout }}"
+
+- name: Check for users
+  shell: grep {{ oracle_user }} /etc/passwd | wc -l
+  register: command_u
+- debug: msg="{{command_u.stdout}}"
+
+- name: Set Whether Oracle User exists
+  set_fact:
+    __oracle_user_exists: "{{ command_u.stdout }}"
+ 
+- name: Creating Oracle User
+  user:
+    state: present
+    name: "{{ oracle_user }}"
+    uid: "{{ oracle_client_user_id }}"
+    group: "{{ oracle_client_group }}"
+    password: "{{ oracle_psw | password_hash('sha512')  }}"
+  when:
+    - __oracle_user_exists == "0"
+    - __oracle_group_exists == "1"
+
+- name: Check for users
+  shell: grep {{ oracle_user }} /etc/passwd | wc -l
+  register: command_u2
+- debug: msg="{{command_u2.stdout}}"
+
+- name: Set Whether Oracle User exists
+  set_fact:
+    __oracle_user_exists: "{{ command_u2.stdout }}"
+
+- stat:
+    path: "{{ id_rsa_file_orcl }}"
+  register: op
+
+- name: Generating ssh key pair
+  command : ssh-keygen -q -t rsa -f "{{ id_rsa_file_orcl }}" -C "" -N ""
+  when: 
+    - op.stat.exists == false
+    - __oracle_user_exists == "1"
+    - __oracle_group_exists == "1"
+  remote_user: "{{ root_user }}"
+  become: yes
+  become_user: "{{ oracle_user }}"
+    
+- name: Copy public key to the nodes
+  local_action:
+    module: shell sshpass -p "{{ oracle_psw }}" ssh-copy-id oracle@192.168.33.13
+  when:
+    - __oracle_user_exists == "1"
+    - __oracle_group_exists == "1"

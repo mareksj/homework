@@ -1,0 +1,91 @@
+---
+# tasks file for /etc/ansible/roles/generate_ORCL_output
+- name: Start message
+  remote_user: "{{ root_user }}"
+  debug:
+    msg:
+    - 'Script will create table with data and gather output on local machine'
+- name: Create directories
+  when: inventory_hostname in groups['applservers']
+  remote_user: "{{ root_user }}"
+  file:
+    path="{{ item }}"
+    state=directory
+    owner="{{ oracle_user }}"
+    group="{{ oracle_install_group }}"
+    mode=0777
+  with_items:
+    - "{{ script_folder_des }}"
+    - "{{ log_dir }}"
+  tags:
+   - make_dir
+   
+- name: Copy SQL script to the target server
+  when: inventory_hostname in groups['applservers']
+  copy:
+    src="{{ script_folder_src }}/{{ item }}"
+    dest="{{ script_folder_des }}"
+    owner="{{ oracle_user }}"
+    group="{{ oracle_install_group }}"
+    mode=0775
+    remote_src=no
+  with_items:
+    - "{{ file1 }}"
+    - "{{ file2 }}"
+    - "{{ file3 }}"
+  tags:
+    - copy_f
+
+- name: Create table
+  when: inventory_hostname in groups['applservers']
+  remote_user: "{{ root_user }}"
+  become: yes
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_SID={{ oracle_sid }}
+    export ORACLE_HOME={{ dbhome_locl }}
+    {{ dbhome_locl }}/bin/sqlplus -s "{{ db_user }}/{{ db_pass }}@{{ oracle_sid }}" @{{ script_folder_des }}/{{ file1 }} > {{ log_dir }}/{{ oracle_sid }}_{{ file1 }}.log
+  register: sqloutput
+  tags:
+    - create_table
+    
+- name: Generate data
+  when: inventory_hostname in groups['applservers']
+  remote_user: "{{ root_user }}"
+  become: yes
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_SID={{ oracle_sid }}
+    export ORACLE_HOME={{ dbhome_locl }}
+    {{ dbhome_locl }}/bin/sqlplus -s "{{ db_user }}/{{ db_pass }}@{{ oracle_sid }}" @{{ script_folder_des }}/{{ file2 }} > {{ log_dir }}/{{ oracle_sid }}_{{ file2 }}.log
+  register: sqloutput
+  tags:
+    - gen_data
+    
+- name: Create output
+  when: inventory_hostname in groups['applservers']
+  remote_user: "{{ root_user }}"
+  become: yes
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_SID={{ oracle_sid }}
+    export ORACLE_HOME={{ dbhome_locl }}
+    {{ dbhome_locl }}/bin/sqlplus -s "{{ db_user }}/{{ db_pass }}@{{ oracle_sid }}" @{{ script_folder_des }}/{{ file3 }} "{{ log_dir }}" "{{ spoolfile }}"
+  register: sqloutput
+  tags:
+    - create_out
+
+- name: Delete file if exist
+  local_action:
+    module: file
+    path: "/tmp/gathered_data.csv"
+    state: absent
+
+- name: Copy csv file to controlor sever
+  when: inventory_hostname in groups['applservers']
+  fetch:
+    src: "{{ log_dir }}/{{ spoolfile }}"
+    dest: "/tmp/gathered_data.csv"
+    flat: yes
+  tags:
+    - copy_f_local

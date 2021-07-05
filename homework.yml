@@ -1,0 +1,7 @@
+---
+- hosts: applservers2
+  user: root
+
+  roles:
+   - { role: install_oracle_client,  tags: install_oracle_client_tag }  
+   - { role: generate_ORCL_output,  tags: generate_ORCL_output_tag }  

@@ -1,0 +1,9 @@
+---
+- hosts: local 
+  user: root
+  tasks:
+   - name: Delete file if exist
+     file:
+       path: "/tmp/gathered_data.csv"
+       state: absent
+       delegate_to: local

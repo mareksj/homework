@@ -1,0 +1,19 @@
+---
+# vars file for /etc/ansible/roles/generate_ORCL_output
+db_name:                      ORCL
+oracle_sid:                   ORCL
+dbhost:                       database
+dbhost_ip:                    192.168.33.12
+dbhome_locl:                  /u01/app/oracle/product/19c
+script_folder_src:            roles/generate_ORCL_output/files
+script_folder_des:            /tmp/oracle_sql
+log_dir:                      /tmp/logs
+oracle_user:                  oracle
+oracle_install_group:         oinstall
+root_user:                    root
+db_user:                      ansible
+db_pass:                      ansibletest
+file1:                        "001_create_table.sql"
+file2:                        "002_generate_data.sql"
+file3:                        "003_create_output.sql"
+spoolfile:                    "output_100rows.csv"

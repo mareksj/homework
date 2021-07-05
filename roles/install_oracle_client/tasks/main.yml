@@ -1,0 +1,242 @@
+- name: Display pre oracle client software install message
+  remote_user: "{{ root_user }}"
+  debug:
+    msg:
+      - 'Oracle Client Software Installation in progress at {{ansible_date_time.iso8601}}:'
+
+- name: Run Configuration For Oracle
+  include: configuration.yml
+
+- name: Check whether Oracle Instantclient Exists
+  stat:
+    path: "{{ oracleclient_home }}/instantclient"
+  register: __oracle_client_location
+  
+- name: Check whether Oracle Inventory Exists
+  stat:
+    path: "{{ oracleclient_inventory }}"
+  register: __oracle_client_inventory_location
+  
+- name: Set Whether Oracle Client is Already Installed
+  set_fact:
+    __oracle_client_installed: "{{ __oracle_client_location.stat.exists and __oracle_client_inventory_location.stat.exists }}"
+
+- name: Create required directories
+  when: 
+    - inventory_hostname in groups['applservers']
+    - not __oracle_client_installed
+  remote_user: "{{ root_user }}"
+  file:
+    path="{{ item }}"
+    state=directory
+    owner="{{ oracle_user }}"
+    group="{{ oracle_install_group }}"
+    mode=0755
+  with_items:
+    - "{{ root_directory }}"
+    - "{{ oracleclient_inventory }}"
+    - "{{ oracle_base }}"
+    - "{{ stage_dir }}"
+    - "{{ oracleclient_home }}"
+  tags:
+   - oc19c_createinventory
+
+- name: Copy required script to the target server
+  when: 
+    - inventory_hostname in groups['applservers']
+    - not __oracle_client_installed
+  copy:
+    src=roles/install_oracle_client/files/{{ item }}
+    dest={{ stage_dir }}
+    owner="{{ oracle_user }}"
+    group="{{ oracle_install_group }}"
+    mode=0775
+    remote_src=no
+  with_items:
+    - tns_upd.sh
+  tags:
+   - tns_entry
+
+- name: Unpack Oracle Client Software to the target server
+  when: 
+    - inventory_hostname in groups['applservers']
+    - not __oracle_client_installed
+  remote_user: "{{ root_user }}"
+  become: yes
+  become_user: "{{ oracle_user }}"
+  unarchive:
+     src={{ file_dir }}/LINUX.X64_193000_client.zip
+     dest="{{ stage_dir }}"
+     remote_src=yes
+     mode=0755
+     group="{{ oracle_install_group }}"
+     owner="{{ oracle_user }}"
+  tags:
+   - oc19c_unpack
+
+- name: Setup Oracle Client Software silent response file
+  when: 
+    - inventory_hostname in groups['applservers']
+    - not __oracle_client_installed
+  remote_user: "{{ root_user }}"
+  become: yes
+  become_user: "{{ oracle_user }}"
+  template: src=roles/install_oracle_client/templates/{{ oraclntsoft }}.rsp.j2 dest={{ stage_dir }}/{{ oraclntsoft }}.rsp mode=0755
+  tags:
+   - oc19c_setuprspfile
+
+- name: Generate Required Swap File For Install
+  command: /bin/dd if=/dev/zero of=/extraswap bs=1024 count=524288
+  when:
+    - ansible_swaptotal_mb < 2600
+    - not __oracle_client_installed
+    
+- name: Make swap For Install
+  command: /sbin/mkswap /extraswap
+  when:
+    - ansible_swaptotal_mb < 2600
+    - not __oracle_client_installed
+
+- name: Generate Swap File Permissions
+  file:
+    name: "/extraswap"
+    mode: 0600
+  when:
+    - ansible_swaptotal_mb < 2600
+    - not __oracle_client_installed
+
+- name: Turn Swap On
+  command: /sbin/swapon /extraswap
+  when:
+    - ansible_swaptotal_mb < 2600
+    - not __oracle_client_installed
+
+- name: Install Oracle Client Software
+  when: 
+    - inventory_hostname in groups['applservers']
+    - not __oracle_client_installed
+  remote_user: "{{ root_user }}"
+  become: yes
+  become_user: "{{ oracle_user }}"
+  shell: "./runInstaller -ignoreSysPrereqs -showProgress -waitforcompletion -silent -responseFile {{ stage_dir }}/{{ oraclntsoft }}.rsp"
+  args:
+    chdir: "{{ stage_dir }}/client"
+    creates: /tmp/installed.log 
+  ignore_errors: True
+  tags:
+   - oc19c_softwareinstall
+
+- name: Check if OraInventoryRoot Script needs to be run
+  stat:
+    path: "{{ oracleclient_inventory }}/orainstRoot.sh"
+  register: __oracle_client_orainst_path
+  when: not __oracle_client_installed
+  
+- name: Run root orainst scripts
+  command: "{{ oracleclient_inventory }}/orainstRoot.sh"
+  register: __oracle_client_orainstRoot
+  when:
+    - not __oracle_client_installed
+    - __oracle_client_orainst_path.stat.exists
+
+- name: Check If Oracle Home Root Script Needs to be Run
+  stat:
+    path: "{{ oracleclient_home }}/root.sh"
+  register: __oracle_client_root_shell_path
+  when: not __oracle_client_installed
+
+- name: Run root configuration
+  command: "{{ oracleclient_home }}/root.sh"
+  register: __oracle_client_install_rootShell
+  when:
+    - not __oracle_client_installed
+    - __oracle_client_root_shell_path.stat.exists
+
+- name: Turn off Swap File
+  command: /sbin/swapoff /extraswap
+  when:
+    - ansible_swaptotal_mb < 2600
+    - not __oracle_client_installed
+
+- name: Remove Swap File
+  file:
+    name: /extraswap
+    state: absent
+  when:
+    - ansible_swaptotal_mb < 2600
+    - not __oracle_client_installed
+
+- name: Validate Oracle Client Software Installation
+  when: 
+    - inventory_hostname in groups['applservers']
+  remote_user: "{{ root_user }}"
+  become: yes
+  become_user: "{{ oracle_user }}"
+  shell: "{{ oracleclient_home }}/bin/sqlplus -version"
+  environment: "{{ env_clh }}" 
+  register: ocl_softversion 
+  ignore_errors: True
+  tags:
+   - oc19c_softwareversion
+- debug:
+    msg: "{{ ocl_softversion.stdout_lines }}" 
+  when: inventory_hostname in groups['applservers']
+
+- name: Set profile entry for the client software
+  when: 
+    - inventory_hostname in groups['applservers']
+    - not __oracle_client_installed
+  remote_user: "{{ root_user }}"
+  become: yes
+  become_user: "{{ oracle_user }}"
+  lineinfile:
+   dest: "/home/oracle/.bash_profile"
+   regexp: "^{{ item.start }}"
+   line: "{{ item.start }}{{ item.end }}"
+   insertbefore: "export PATH"
+  with_items:
+   - { start: "ORACLE_HOME=", end: "{{ oracleclient_home }}" }
+   - { start: "PATH=", end: "{{ oracleclient_home }}/bin:$PATH:/bin:/usr/bin::/usr/ccs/bin" }
+
+- name: Create tnsnames.ora and sqlnet.ora path if not present
+  when: 
+    - inventory_hostname in groups['applservers']
+    - not __oracle_client_installed
+  remote_user: "{{ root_user }}"
+  become: yes
+  become_user: "{{ oracle_user }}"
+  file:
+    path: "{{ item.location }}"
+    state: touch
+    mode: "{{ item.mode }}"
+  with_items:
+  - { location: '{{ tns_file }}',mode: '0775'}
+  - { location: '{{ sqlnet_file }}',mode: '0775'} 
+
+- name: Add tns entry for the source databases
+  when: 
+    - inventory_hostname in groups['applservers']
+    - not __oracle_client_installed
+  remote_user: "{{ root_user }}"
+  become: yes
+  become_user: "{{ oracle_user }}"
+  shell: '{{ stage_dir }}/tns_upd.sh {{ oracle_sid }} {{ dbhost }} {{ portnum }} {{ db_name }} {{ tns_path }}'
+  args:
+    executable: /bin/bash
+
+- name: Add entry to sqlnet.ora file 
+  when: 
+    - inventory_hostname in groups['applservers']
+    - not __oracle_client_installed
+  blockinfile:
+    path: "{{ sqlnet_file }}"
+    marker: "------"
+    insertafter: '### Modify According to your setup'
+    state: present
+    block: |
+      SQLNET.AUTHENTICATION_SERVICES= (NTS)
+      NAMES.DIRECTORY_PATH= (TNSNAMES, EZCONNECT)
+
+- name: Remove stage directory 
+  when: inventory_hostname in groups['applservers']
+  file: path={{ stage_dir }} state=absent
