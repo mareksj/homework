@@ -11,20 +11,20 @@ oracle_client_user_id:              11000
 oracle_client_group:                oinstall
 oracle_client_group_id:             11000
 root_user:                          root
-oraclntsoft:                   "oracleclient.soft"    
+oraclntsoft:                        "oracleclient.soft"    
 oracleclient_installType:           Administrator
-tns_path: "{{ oracleclient_home }}/network/admin"
-tns_file: "{{ tns_path }}/tnsnames.ora"
-sqlnet_file: "{{ tns_path }}/sqlnet.ora"
-portnum:                         1521
-db_name:                    ORCL
-oracle_sid:                    ORCL
-dbhost:                         192.168.33.12
-id_rsa_file_orcl:                    /home/oracle/.ssh/id_rsa
-ssh_public_key:                   /root/.ssh/id_rsa.pub 
-passphrase:                    "changeit"
-remote_tmp:                    /tmp
-oracle_psw: oraclemanager
+tns_path:                           "{{ oracleclient_home }}/network/admin"
+tns_file:                           "{{ tns_path }}/tnsnames.ora"
+sqlnet_file:                        "{{ tns_path }}/sqlnet.ora"
+portnum:                            1521
+db_name:                            ORCL
+oracle_sid:                         ORCL
+dbhost:                             192.168.33.12
+id_rsa_file_orcl:                   /home/oracle/.ssh/id_rsa
+ssh_public_key:                     /root/.ssh/id_rsa.pub 
+passphrase:                         "changeit"
+remote_tmp:                         /tmp
+oracle_psw:                         oraclemanager
 
 env_clh:
   ORACLE_HOME: "{{ oracleclient_home }}"
